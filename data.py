@@ -19,6 +19,8 @@ The activity types:
 
 from __future__ import absolute_import, division, print_function
 
+from collections import OrderedDict
+from datetime import datetime
 import geopy
 import geopy.distance as gd
 import json
@@ -29,7 +31,7 @@ import os
 location_dtype = [  # array internalized from the input data
     ('latitude', 'f8'),
     ('longitude', 'f8'),
-    ('timestampMs', 'i8'),
+    ('timestamp', 'f8'),
     # altitude, accuracy, velocity, verticalAccuracy, activity
 ]
 
@@ -49,7 +51,7 @@ def dicts_to_array(history):
         array[reverse_index] = (
             int(location['latitudeE7']) * 1e-7,
             int(location['longitudeE7']) * 1e-7,
-            int(location['timestampMs']),
+            int(location['timestampMs']) * 1e-3,
         )
     return array
 
@@ -75,12 +77,29 @@ def compute_deltas(locations):
     for i in range(1, len(locations)):
         location = locations[i]
         miles = distance_miles(location, previous)
-        seconds = (location['timestampMs'] - previous['timestampMs']) * 1e-3
+        seconds = location['timestamp'] - previous['timestamp']
         mph = miles / seconds * 3600.0
         deltas[i] = (miles, seconds, mph)
         previous = location
 
     return deltas
+
+
+def find_years(locations):
+    """Find the {year: start_index} for each year in locations, returning an OrderedDict with a sentinel."""
+    result = OrderedDict()
+    previous_year = None
+
+    for i, location in enumerate(locations):
+        year = datetime.utcfromtimestamp(location['timestamp']).year
+        if year != previous_year:
+            result[year] = i
+            previous_year = year
+
+    if previous_year:
+        result[previous_year + 1] = len(locations)
+
+    return result
 
 
 def geocode(query):
@@ -97,11 +116,12 @@ def geocode(query):
 
 class HistoryData(object):
     def __init__(self):
-        self.locations = None
-        self.deltas = None
+        self.locations = None   # numpy array(dtype=location_dtype)
+        self.years = None       # numpy array(dtype=delta_dtype)
+        self.deltas = None      # OrderedDict(year -> start_index)
 
     def read(self, path=None):
-        """Read the Location History JSON file into the `locations` and `deltas` arrays."""
+        """Read in the Location History JSON file."""
         if not path:
             home = os.environ['HOME']
             path = os.path.join(home, 'Downloads', 'Takeout', 'Location History', 'Location History.json')
@@ -110,4 +130,5 @@ class HistoryData(object):
             history = json.load(f)
 
         self.locations = dicts_to_array(history)
+        self.years = find_years(self.locations)
         self.deltas = compute_deltas(self.locations)
