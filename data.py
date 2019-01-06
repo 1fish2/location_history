@@ -24,6 +24,7 @@ from datetime import datetime
 import geopy
 import geopy.distance as gd
 import json
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -86,18 +87,23 @@ def compute_deltas(locations):
 
 
 def find_years(locations):
-    """Find the {year: start_index} for each year in locations, returning an OrderedDict with a sentinel."""
-    result = OrderedDict()
+    """Find the year index ranges in locations, returning an OrderedDict {year: slice}."""
+    starts = []
     previous_year = None
 
-    for i, location in enumerate(locations):
+    for index, location in enumerate(locations):
         year = datetime.utcfromtimestamp(location['timestamp']).year
         if year != previous_year:
-            result[year] = i
+            starts.append((year, index))
             previous_year = year
 
-    if previous_year:
-        result[previous_year + 1] = len(locations)
+    starts.append((None, len(locations)))
+    result = OrderedDict()
+
+    for i in range(len(starts) - 1):
+        year, start = starts[i]
+        stop = starts[i + 1][1]
+        result[year] = slice(start, stop)
 
     return result
 
@@ -112,6 +118,18 @@ def geocode(query):
     # location[0] is the formatted location string.
     # location[1] is the (latitude, longitude) pair.
     return location[1]
+
+
+def driving_indexes(deltas):
+    """Return a list of indexes into deltas[] with feasible driving leg values."""
+    miles_limit = 1000
+    mph_limit = 100
+    seconds_limit = miles_limit / mph_limit * 3600
+
+    def test(delta):
+        return delta['miles'] < miles_limit and delta['seconds'] < seconds_limit and delta['mph'] < mph_limit
+
+    return [i for i in range(len(deltas)) if test(deltas[i])]
 
 
 class HistoryData(object):
@@ -132,3 +150,32 @@ class HistoryData(object):
         self.locations = dicts_to_array(history)
         self.years = find_years(self.locations)
         self.deltas = compute_deltas(self.locations)
+
+    def year_labels(self):
+        return [str(year) for year in self.years]
+
+    def driving_leg_deltas_by_year(self):
+        """Return a list of driving leg delta arrays, one per year."""
+        yearly_deltas = [self.deltas[index_range] for index_range in self.years.values()]
+        data = [yd[driving_indexes(yd)] for yd in yearly_deltas]
+        return data
+
+
+def distance_speed_histogram(history):
+    """Plot a (distance, speed) histogram from the location driving data. Call `plt.show()` to display it."""
+    indexes = driving_indexes(history.deltas)
+    d = history.deltas[indexes]
+    plt.hist((d['miles'], d['mph']), label=('miles', 'MPH'), log=True, histtype='bar', linewidth=2)
+    plt.legend()
+    plt.title('Driving legs')
+
+
+def histogram_by_year(history, field='mph'):
+    """Plot a histogram by year from the location driving data. Call `plt.show()` to display it.
+    `field` is one of {'seconds', 'miles', 'mph'}.
+    """
+    data = [d[field] for d in history.driving_leg_deltas_by_year()]
+    labels = history.year_labels()
+    plt.hist(data, label=labels, log=True, histtype='step')
+    plt.legend()
+    plt.title('Driving legs, ' + field)
