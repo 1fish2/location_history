@@ -122,7 +122,7 @@ def geocode(query):
 
 def driving_indexes(deltas):
     """Return a list of indexes into deltas[] with feasible driving leg values."""
-    miles_limit = 1000
+    miles_limit = 200
     mph_limit = 100
     seconds_limit = miles_limit / mph_limit * 3600
 
