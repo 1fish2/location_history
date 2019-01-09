@@ -71,7 +71,7 @@ def distance_miles(loc1, loc2):
 
 
 def compute_deltas(locations):
-    """Compute the delta miles, delta seconds, and MPH array from a locations array."""
+    """Compute the adjacent point delta miles, delta seconds, and MPH array from a locations array."""
     deltas = np.zeros(len(locations), dtype=delta_dtype)
     previous = locations[0]
 
@@ -135,8 +135,8 @@ def driving_indexes(deltas):
 class HistoryData(object):
     def __init__(self):
         self.locations = None   # numpy array(dtype=location_dtype)
-        self.years = None       # numpy array(dtype=delta_dtype)
-        self.deltas = None      # OrderedDict(year -> start_index)
+        self.years = None       # OrderedDict(year -> index slice)
+        self.deltas = None      # numpy array(dtype=delta_dtype)
 
     def read(self, path=None):
         """Read in the Location History JSON file."""
@@ -160,18 +160,40 @@ class HistoryData(object):
         data = [yd[driving_indexes(yd)] for yd in yearly_deltas]
         return data
 
+    def home_trip_lengths(self, year, home_query):
+        """Return a list of trip distances in the given year, segmented by travel from "home"."""
+        home = geocode(home_query)
+        fence = 5280 / 200  # miles radius for "home"
+        result = []
+        trip_miles = 0
+        year_slice = self.years[year]
+
+        for loc, delta in zip(self.locations[year_slice], self.deltas[year_slice]):  # TODO(jerry): Does this copy all?
+            if gd.great_circle(home, (loc[0], loc[1])).miles < fence:
+                if trip_miles > 0:
+                    result.append(trip_miles)
+                    trip_miles = 0
+            else:
+                trip_miles += delta['miles']
+
+        if trip_miles > 0:
+            result.append(trip_miles)
+
+        return result
+
 
 def distance_speed_histogram(history):
-    """Plot a (distance, speed) histogram from the location driving data. Call `plt.show()` to display it."""
+    """Plot a (distance, speed) histogram from the location driving data."""
     indexes = driving_indexes(history.deltas)
     d = history.deltas[indexes]
     plt.hist((d['miles'], d['mph']), label=('miles', 'MPH'), log=True, histtype='bar', linewidth=2)
     plt.legend()
     plt.title('Driving legs')
+    plt.show()
 
 
 def histogram_by_year(history, field='mph'):
-    """Plot a histogram by year from the location driving data. Call `plt.show()` to display it.
+    """Plot a histogram by year from the location driving data.
     `field` is one of {'seconds', 'miles', 'mph'}.
     """
     data = [d[field] for d in history.driving_leg_deltas_by_year()]
@@ -179,3 +201,44 @@ def histogram_by_year(history, field='mph'):
     plt.hist(data, label=labels, log=True, histtype='step')
     plt.legend()
     plt.title('Driving legs, ' + field)
+    plt.show()
+
+
+def histogram_of_trips(history, year, home_query):
+    """Plot a histogram of the given trip lengths."""
+    trips = history.home_trip_lengths(year, home_query)
+    plt.hist(trips, label='miles', log=True, histtype='stepfilled')
+    plt.legend()
+    plt.title('Trip lengths in {}'.format(year))
+    plt.show()
+
+
+def trips_by_day(history, year):
+    result = []
+    year_slice = history.years[year]
+    trip_miles = 0
+    previous_day = None
+    deltas = history.deltas[year_slice]
+    drives = driving_indexes(deltas)
+    filtered_deltas = deltas[drives]
+    filtered_locations = history.locations[year_slice][drives]
+
+    for loc, delta in zip(filtered_locations, filtered_deltas):
+        dt = datetime.utcfromtimestamp(loc['timestamp'])
+        m_d = (dt.month, dt.day)
+        if m_d != previous_day:
+            result.append(trip_miles)
+            previous_day = m_d
+            trip_miles = 0
+        else:
+            trip_miles += delta['miles']
+    return result
+
+
+def histogram_of_trips_by_day(history, year):
+    """Plot a histogram of trips by day in the given year."""
+    trips = trips_by_day(history, year)
+    plt.hist(trips, label='miles', log=True, histtype='stepfilled')
+    plt.legend()
+    plt.title('Trip lengths in {}'.format(year))
+    plt.show()
