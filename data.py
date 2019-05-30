@@ -198,16 +198,26 @@ def histogram_by_year(history, field='mph'):
     """
     data = [d[field] for d in history.driving_leg_deltas_by_year()]
     labels = history.year_labels()
-    plt.hist(data, label=labels, log=True, histtype='step')
+    plt.hist(data, label=labels, log=True, histtype='step', linewidth=2)
     plt.legend()
     plt.title('Driving legs, ' + field)
+    plt.show()
+
+
+def log_histogram_by_year(history, field='mph'):
+    yearly_deltas = [history.deltas[index_range][field] for index_range in history.years.values()]
+    labels = history.year_labels()
+    bins = np.logspace(0, np.log10(max(history.deltas[field])), 20)
+    plt.hist(yearly_deltas, label=labels, log=True, bins=bins, histtype='step', linewidth=2)
+    plt.legend()
+    plt.title('History legs (data pairs), log ' + field)
     plt.show()
 
 
 def histogram_of_trips(history, year, home_query):
     """Plot a histogram of the given trip lengths."""
     trips = history.home_trip_lengths(year, home_query)
-    plt.hist(trips, label='miles', log=True, histtype='stepfilled')
+    plt.hist(trips, label='miles', log=True, histtype='stepfilled', linewidth=2)
     plt.legend()
     plt.title('Trip lengths in {}'.format(year))
     plt.show()
@@ -238,7 +248,7 @@ def trips_by_day(history, year):
 def histogram_of_trips_by_day(history, year):
     """Plot a histogram of trips by day in the given year."""
     trips = trips_by_day(history, year)
-    plt.hist(trips, label='miles', log=True, histtype='stepfilled')
+    plt.hist(trips, label='miles', log=True, histtype='stepfilled', linewidth=2)
     plt.legend()
     plt.title('Trip lengths in {}'.format(year))
     plt.show()
