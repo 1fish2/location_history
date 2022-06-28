@@ -5,11 +5,11 @@
 #   brew install pyenv-virtualenv
 #   brew install pyenv-virtualenvwrapper
 #
-## Install OpenBLAS 0.3.5 via brew (etc.) or compile it from source.
+## Install OpenBLAS via brew (etc.) or compile it from source.
 #
-## Create a pyenv with Python 2.7.15.
-#   PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 2.7.15
-#   pyenv local 2.7.15
+## Create a pyenv:
+#   PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install 3.10.3
+#   pyenv local 3.10.3
 #
 ## Create and select a new python virtual environment:
 #   pyenv virtualenv location_tools && pyenv local location_tools
@@ -21,7 +21,7 @@
 #    library_dirs = /opt/OpenBLAS/lib
 #    include_dirs = /opt/OpenBLAS/include
 ## * Run
-#    pip install numpy==1.15.4 --no-binary numpy
+#    pip install numpy==1.19 --no-binary numpy
 #
 ## Upgrade the installers:
 #   pip install --upgrade pip setuptools virtualenv wheel
